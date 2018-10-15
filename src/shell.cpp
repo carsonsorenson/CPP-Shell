@@ -59,7 +59,7 @@ void Shell::run(){
             execCommand = false;
             exitProgram = true;
         }
-        else if (execCommand){
+        if (execCommand){
             std::vector<char*> cmd = parseArgument(command);
             pid_t pid = fork();
             if (pid != 0){
