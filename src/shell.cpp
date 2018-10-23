@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <iomanip>
+#include <chrono>
 
 /*
     int wstatus;
@@ -16,18 +17,6 @@
     if (WEXITSTATUS(wstatus) != 0) {
     }
 */
-
-std::vector<char*> parseArgument(std::string command){
-    std::vector<char*> commandLineArguments;
-    std::stringstream ss(command);
-    std::string tmp;
-
-    while(ss >> tmp){
-        commandLineArguments.push_back(strdup(tmp.c_str()));
-    }
-    commandLineArguments.push_back(nullptr);
-    return commandLineArguments;
-}
 
 int changeDirectory(const char* path){
     int retval = chdir(path);
@@ -56,6 +45,10 @@ void Shell::run(){
     std::vector<std::string> commandHistory;
     std::vector<std::string> directoryHistory(1);
     std::string command;
+
+    //ptime keeps track of cumulative time spent by all child processes
+    double pTimeCount = 0;
+
     while(true){
         directoryHistory[directoryHistory.size() - 1] = printWorkingDirectory();
         std::cout << "[cmd]: ";
@@ -77,6 +70,7 @@ void Shell::run(){
         }
 
         if(command == "ptime"){
+            std::cout << "Time spent executing child processes: " << pTimeCount << " seconds\n";
         }
         else if(command == "history"){
             std::cout << "-- Command History --\n\n";
@@ -108,11 +102,12 @@ void Shell::run(){
             }
             else{
                 std::string path = command.substr(6, command.length() - 6);
-                const char* cpath = path.c_str();
+                char* cpath = strdup(path.c_str());
                 if (changeDirectory(cpath) == 0){
                     directoryHistory.push_back(printWorkingDirectory());
                     printDirs(directoryHistory);
                 }
+                free(cpath);
             }
         }
         else if (command.substr(0, 4) == "popd"){
@@ -146,22 +141,34 @@ void Shell::run(){
             break;
         }
         else{
-            std::vector<char*> cmd = parseArgument(command);
+            std::vector<char*> cmd;
+            std::stringstream ss(command);
+            std::string tmp;
+
+            while(ss >> tmp){
+                cmd.push_back(strdup(tmp.c_str()));
+            }
+            cmd.push_back(nullptr);
+
+            auto start = std::chrono::high_resolution_clock::now();
             pid_t pid = fork();
-            if (pid != 0){
+            if (pid == 0){
+                int retval = execvp(cmd[0], cmd.data());
+                if(retval == -1){
+                    std::cerr << cmd[0] << " failed because " << strerror(errno) << "\n";
+                    exit(1);
+                }
+            }
+            else{
                 int status;
                 wait(&status);
                 if (WEXITSTATUS(status)){
                     std::cerr << "Child process had this problem: " << strerror(WEXITSTATUS(status)) << std::endl;
                 }
             }
-            else{
-                int retval = execvp(cmd[0], cmd.data());
-                if(retval == -1){
-                    std::cerr << cmd[0] << " did something wrong\n";
-                    exit(1);
-                }
-            }
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> total = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+            pTimeCount += total.count();
         }
         commandHistory.push_back(command);
     }
