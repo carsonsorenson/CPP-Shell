@@ -54,6 +54,10 @@ double handleExec(std::string command){
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> total = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+
+    for(unsigned int i = 0; i < cmd.size(); i++){
+        free(cmd[i]);
+    }
     return total.count();
 }
 
@@ -88,6 +92,20 @@ void livingTime(timeval start, timeval end){
         seconds-= 60;
     }
     std::cout << std::setfill('0') << std::setw(2) << hours << ":" << std::setfill('0') << std::setw(2) << minutes << ":" << std::setfill('0') << std::setw(2) << seconds << "\n";
+}
+
+void runningTime(float totalTime){
+    int hours = 0;
+    int minutes = 0;
+    while(totalTime >= 3600){
+        hours++;
+        totalTime-=3600;
+    }
+    while(totalTime >= 60){
+        minutes++;
+        totalTime-= 60;
+    }
+    std::cout << std::setfill('0') << std::setw(2) << hours << ":" << std::setfill('0') << std::setw(2) << minutes << ":" << std::setfill('0') << std::setw(2) << totalTime << "\n";
 }
 
 void prettyPrintPtime(double pTimeCount){
@@ -153,6 +171,9 @@ int main() {
     std::vector<std::string> directoryHistory(1);
     std::string command;
     double pTimeCount = 0.0;
+    clock_t startClock;
+
+    startClock = clock();
 
     while (true){
         directoryHistory[directoryHistory.size() -1] = printWorkingDirectory();
@@ -190,11 +211,14 @@ int main() {
             livingTime(start, end);
         }
         else if (command == "running_time"){
-
+            float totalClock = clock() - startClock;
+            float runningTotal = (float)totalClock / CLOCKS_PER_SEC;
+            runningTime(runningTotal);
         }
         else{
             pTimeCount += handleExec(command);
         }
         commandHistory.push_back(command);
     }
+    return 0;
 }

@@ -5,4 +5,4 @@ if (CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_CXX_FLAGS "-std=c++14 -O0 -g3 -Wall -Wextra ${CMAKE_CXX_FLAGS}")
 endif()
 
-add_executable(Assign4 main.cpp)
+add_executable(shell main.cpp)
