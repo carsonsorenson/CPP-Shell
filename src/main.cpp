@@ -9,6 +9,9 @@
 #include <iomanip>
 #include <chrono>
 
+void sigint(int signal __attribute__((unused))){
+}
+
 int changeDirectory(char* path){
     int retval = chdir(path);
     if (retval != 0){
@@ -165,6 +168,7 @@ void handlePushD(std::string command, std::vector<std::string>& directoryHistory
 }
 
 int main() {
+    signal(SIGINT, sigint);
     struct timeval start, end;
     gettimeofday(&start, NULL);
     std::vector<std::string> commandHistory;
@@ -177,7 +181,7 @@ int main() {
 
     while (true){
         directoryHistory[directoryHistory.size() -1] = printWorkingDirectory();
-        std::cout << "[cmd]: ";
+        std::cout << printWorkingDirectory() << " => ";
         std::getline(std::cin, command);
 
         if(command.substr(0, 1) == "^"){
