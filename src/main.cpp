@@ -32,6 +32,65 @@ void handleCD(std::string& command){
     }
 }
 
+void handlePipes(std::string command){
+    const int READ = 0;
+    const int WRITE = 1;
+
+    std::vector<std::vector<char*>> allCmds;
+    std::vector<char*> cmd;
+    std::stringstream ss(command);
+    std::string temp;
+    while (ss >> temp){
+        if (temp == "|"){
+            cmd.push_back(nullptr);
+            allCmds.push_back(cmd);
+            cmd.clear();
+        }
+        else{
+            cmd.push_back(strdup(temp.c_str()));
+        }
+    }
+    cmd.push_back(nullptr);
+    allCmds.push_back(cmd);
+
+    int fd[2];
+    if(pipe(fd) != 0){
+        std::cerr << "pipe() failed because: " << strerror(errno) << std::endl;
+        exit(1);
+    }
+
+    pid_t first = fork();
+    if (first == 0){
+        close(fd[WRITE]);
+        dup2(fd[READ], STDIN_FILENO);
+
+        int retval = execvp(allCmds[1][0], allCmds[1].data());
+        if (retval == -1){
+            std::cerr << cmd[0] << " failed because " << strerror(errno) << "\n";
+            exit(1);
+        }
+    }
+
+    pid_t second = fork();
+    if(second == 0){
+        close(fd[READ]);
+        dup2(fd[WRITE], STDOUT_FILENO);
+
+        int retval = execvp(allCmds[0][0], allCmds[0].data());
+        if (retval == -1){
+            std::cerr << cmd[0] << " failed because " << strerror(errno) << "\n";
+            exit(1);
+        }
+    }
+
+    close(fd[READ]);
+    close(fd[WRITE]);
+    int wstatus;
+    for(unsigned int i = 0; i < allCmds.size(); i++){
+        wait(&wstatus);
+    }
+}
+
 double handleExec(std::string command){
     std::vector<char*> cmd;
     std::stringstream ss(command);
@@ -181,7 +240,7 @@ int main() {
 
     while (true){
         directoryHistory[directoryHistory.size() -1] = printWorkingDirectory();
-        std::cout << printWorkingDirectory() << " => ";
+        std::cout << "[" << printWorkingDirectory() << ":] ";
         std::getline(std::cin, command);
 
         if(command.substr(0, 1) == "^"){
@@ -218,6 +277,9 @@ int main() {
             float totalClock = clock() - startClock;
             float runningTotal = (float)totalClock / CLOCKS_PER_SEC;
             runningTime(runningTotal);
+        }
+        else if (command.find("|") != std::string::npos){
+            handlePipes(command);
         }
         else{
             pTimeCount += handleExec(command);
