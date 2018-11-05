@@ -33,9 +33,6 @@ void handleCD(std::string& command){
 }
 
 void handlePipes(std::string command){
-    const int READ = 0;
-    const int WRITE = 1;
-
     std::vector<std::vector<char*>> allCmds;
     std::vector<char*> cmd;
     std::stringstream ss(command);
@@ -53,41 +50,48 @@ void handlePipes(std::string command){
     cmd.push_back(nullptr);
     allCmds.push_back(cmd);
 
-    int fd[2];
-    if(pipe(fd) != 0){
-        std::cerr << "pipe() failed because: " << strerror(errno) << std::endl;
-        exit(1);
-    }
-
-    pid_t first = fork();
-    if (first == 0){
-        close(fd[WRITE]);
-        dup2(fd[READ], STDIN_FILENO);
-
-        int retval = execvp(allCmds[1][0], allCmds[1].data());
-        if (retval == -1){
-            std::cerr << cmd[0] << " failed because " << strerror(errno) << "\n";
+    int numOfPipes = allCmds.size() -1;
+    int fd[2 * numOfPipes];
+    for(int i = 0; i < numOfPipes; i++){
+        if(pipe(fd + i * 2) != 0){
+            std::cerr << "pipe() failed because: " << strerror(errno) << std::endl;
             exit(1);
         }
     }
 
-    pid_t second = fork();
-    if(second == 0){
-        close(fd[READ]);
-        dup2(fd[WRITE], STDOUT_FILENO);
-
-        int retval = execvp(allCmds[0][0], allCmds[0].data());
-        if (retval == -1){
-            std::cerr << cmd[0] << " failed because " << strerror(errno) << "\n";
-            exit(1);
-        }
-    }
-
-    close(fd[READ]);
-    close(fd[WRITE]);
-    int wstatus;
+    int j = 0;
     for(unsigned int i = 0; i < allCmds.size(); i++){
-        wait(&wstatus);
+        pid_t pid = fork();
+        if (pid == 0){
+            // if its not the last command child outputs to next
+            if (i != allCmds.size() -1){
+                dup2(fd[i * 2 + 1], STDOUT_FILENO);
+            }
+
+            //if its not the first command child gets input from previous
+            if (i != 0){
+                dup2(fd[(i - 1) * 2], STDIN_FILENO);
+            }
+
+            for(int i = 0; i< 2 * numOfPipes; i++){
+                close(fd[i]);
+            }
+            int retval = execvp(allCmds[i][0], allCmds[i].data());
+            if (retval == -1){
+                std::cerr << cmd[0] << " failed because " << strerror(errno) << "\n";
+                exit(1);
+            }
+        }
+        j+=2;
+    }
+
+    for(int i = 0; i < 2 * numOfPipes; i++){
+        close(fd[i]);
+    }
+
+    int status;
+    for(int i = 0; i < numOfPipes + 1; i++){
+        wait(&status);
     }
 }
 
