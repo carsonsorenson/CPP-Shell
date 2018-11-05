@@ -32,7 +32,7 @@ void handleCD(std::string& command){
     }
 }
 
-void handlePipes(std::string command){
+double handlePipes(std::string command){
     std::vector<std::vector<char*>> allCmds;
     std::vector<char*> cmd;
     std::stringstream ss(command);
@@ -50,6 +50,7 @@ void handlePipes(std::string command){
     cmd.push_back(nullptr);
     allCmds.push_back(cmd);
 
+    auto start = std::chrono::high_resolution_clock::now();
     int numOfPipes = allCmds.size() -1;
     int fd[2 * numOfPipes];
     for(int i = 0; i < numOfPipes; i++){
@@ -58,8 +59,6 @@ void handlePipes(std::string command){
             exit(1);
         }
     }
-
-    int j = 0;
     for(unsigned int i = 0; i < allCmds.size(); i++){
         pid_t pid = fork();
         if (pid == 0){
@@ -73,6 +72,7 @@ void handlePipes(std::string command){
                 dup2(fd[(i - 1) * 2], STDIN_FILENO);
             }
 
+            //close all pipes
             for(int i = 0; i< 2 * numOfPipes; i++){
                 close(fd[i]);
             }
@@ -82,7 +82,6 @@ void handlePipes(std::string command){
                 exit(1);
             }
         }
-        j+=2;
     }
 
     for(int i = 0; i < 2 * numOfPipes; i++){
@@ -93,6 +92,10 @@ void handlePipes(std::string command){
     for(int i = 0; i < numOfPipes + 1; i++){
         wait(&status);
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> total = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    return total.count();
 }
 
 double handleExec(std::string command){
@@ -283,7 +286,7 @@ int main() {
             runningTime(runningTotal);
         }
         else if (command.find("|") != std::string::npos){
-            handlePipes(command);
+            pTimeCount += handlePipes(command);
         }
         else{
             pTimeCount += handleExec(command);
